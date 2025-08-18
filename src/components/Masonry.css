@@ -1,0 +1,29 @@
+.masonry {
+    column-count: 10;
+    /* number of columns on large screens */
+    column-gap: 16px;
+    /* spacing between columns */
+}
+
+@media (max-width: 1100px) {
+    .masonry {
+        column-count: 3;
+    }
+}
+
+@media (max-width: 700px) {
+    .masonry {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 500px) {
+    .masonry {
+        column-count: 1;
+    }
+}
+
+.masonry>div {
+    break-inside: avoid;
+    margin-bottom: 16px;
+}
