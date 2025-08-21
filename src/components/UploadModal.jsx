@@ -12,8 +12,32 @@ export const UploadModal = ({ isOpen, onClose, profile }) => {
 
   if (!isOpen) return null;
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
+  const handleFileChange = (e) => setFile(e.target.files[0]);
+
+  const detectAI = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/detect-ai`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_KEY}` },
+      body: formData,
+    });
+
+    let aiResult;
+    try {
+      aiResult = await res.json();
+    } catch (err) {
+      console.error("Failed to parse AI detection response:", err);
+      throw new Error("Invalid response from AI detection service");
+    }
+
+    if (!res.ok) {
+      throw new Error(aiResult.error || aiResult.reason || "AI detection failed");
+    }
+
+    console.log("AI detection result:", aiResult);
+    return aiResult;
   };
 
   const handleUpload = async () => {
@@ -27,51 +51,47 @@ export const UploadModal = ({ isOpen, onClose, profile }) => {
     setUploading(true);
 
     try {
+      const aiResult = await detectAI(file);
+
+      if (!aiResult.success) {
+        setError(`Upload blocked: ${aiResult.reason} (confidence: ${aiResult.confidence})`);
+        setUploading(false);
+        return;
+      }
+
       const userId = profile?.id;
       if (!userId) throw new Error("No user profile available");
 
       const uploaderName = profile?.display_name || "Unknown";
-
-      // Convert tags input (comma-separated string) to array
       const parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean);
 
-      // Debug logs: check values before inserting
-
-
-
-      // Upload file
+      // Upload file to Supabase storage
       const fileExt = file.name.split(".").pop();
-      const fileName = `${userId}_${Date.now()}.${fileExt}`; 
-      const filePath = `${userId}/${fileName}`;     
-      console.log("Uploading file object:", file);
+      const fileName = `${userId}_${Date.now()}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("gallery")
         .upload(filePath, file, { upsert: true });
-
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: publicUrlData } = supabase.storage
         .from("gallery")
         .getPublicUrl(filePath);
-
       const publicUrl = publicUrlData.publicUrl;
 
-      // Insert into gallery
       const { error: insertError } = await supabase
         .from("gallery")
         .insert({
           image_url: publicUrl,
           tags: parsedTags,
           source_link: sourceLink,
-          title: title,
+          title,
           uploader: uploaderName,
-          author: author,
-          user_id: userId
+          author,
+          user_id: userId,
         })
         .select();
-
       if (insertError) throw insertError;
 
       setUploading(false);
@@ -80,9 +100,6 @@ export const UploadModal = ({ isOpen, onClose, profile }) => {
       setError(err.message || "Upload failed");
       setUploading(false);
     }
-
-
-
   };
 
   return (
@@ -129,10 +146,7 @@ export const UploadModal = ({ isOpen, onClose, profile }) => {
           >
             {uploading ? "Uploading..." : "Upload"}
           </button>
-          <button
-            onClick={onClose}
-            className="bg-gray-300 px-4 py-2 rounded"
-          >
+          <button onClick={onClose} className="bg-gray-300 px-4 py-2 rounded">
             Cancel
           </button>
         </div>

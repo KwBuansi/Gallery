@@ -3,7 +3,9 @@ import { supabase } from "../supabase-client";
 
 const ImageEditModal = ({ image, onClose, onSave}) => {
     const [title, setTitle] = useState(image.title || "");
-    const [tags, setTags] = useState(image.tags || "");
+    const [tags, setTags] = useState(
+      Array.isArray(image.tags) ? image.tags.join(", ") : image.tags || ""
+    );
     const [sourceLink, setSourceLink] = useState(image.source_link || "");
     const [author, setAuthor] = useState(image.author || "");
     const [saving, setSaving] = useState(false);
@@ -13,9 +15,14 @@ const ImageEditModal = ({ image, onClose, onSave}) => {
         setSaving(true);
         setError(null);
 
+        const parsedTags = (tags ? (Array.isArray(tags) ? tags : tags.split(",")) : [])
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+
         const { data, error } = await supabase
             .from("gallery")
-            .update({ title, tags, source_link: sourceLink, author })
+            .update({ title, tags: parsedTags, source_link: sourceLink, author })
             .eq("id", image.id)
             .select()
             .single();
@@ -34,7 +41,7 @@ const ImageEditModal = ({ image, onClose, onSave}) => {
         if (!image?.id || !image?.image_url) return;
 
         const confirmDelete = window.confirm("Are you sure you want to delete this image?")
-        if (!confirmDelete) requestAnimationFrame;
+        if (!confirmDelete) return;
 
         try {
             // Get storage path
